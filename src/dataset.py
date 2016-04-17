@@ -933,7 +933,7 @@ class TUTAcousticScenes_2016_DevelopmentSet(Dataset):
                 for row in reader:
                     if row[0] not in meta_data:
                         meta_data[row[0]] = row[1]
-                                    
+
                 f.close()
                 # Read evaluation files in
                 eval_filename = os.path.join(self.evaluation_setup_path, 'fold' + str(fold) + '_evaluate.txt')

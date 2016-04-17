@@ -11,12 +11,15 @@ from src.features import *
 from src.dataset import *
 from src.evaluation import *
 
+from src.keras_rnn import RNN
+
 import numpy
 import csv
 import argparse
 import textwrap
 
 from sklearn import mixture
+from sklearn import preprocessing
 
 __version_info__ = ('1', '0', '0')
 __version__ = '.'.join(__version_info__)
@@ -125,7 +128,7 @@ def main(argv):
     if params['flow']['train_system']:
         section_header('System training')
 
-        do_system_training(dataset=dataset,                           
+        do_system_training(dataset=dataset,
                            model_path=params['path']['models'],
                            feature_normalizer_path=params['path']['feature_normalizers'],
                            feature_path=params['path']['features'],
@@ -145,16 +148,16 @@ def main(argv):
         if params['flow']['test_system']:
             section_header('System testing')
 
-            do_system_testing(dataset=dataset,                              
+            do_system_testing(dataset=dataset,
                               feature_path=params['path']['features'],
                               result_path=params['path']['results'],
                               model_path=params['path']['models'],
                               feature_params=params['features'],
                               dataset_evaluation_mode=dataset_evaluation_mode,
-                              classifier_method=params['classifier']['method'],                              
+                              classifier_method=params['classifier']['method'],
                               overwrite=params['general']['overwrite']
                               )
-            
+
             foot()
 
         # System evaluation
@@ -180,13 +183,13 @@ def main(argv):
         if params['flow']['test_system']:
             section_header('System testing with challenge data')
 
-            do_system_testing(dataset=challenge_dataset,                              
+            do_system_testing(dataset=challenge_dataset,
                               feature_path=params['path']['features'],
                               result_path=params['path']['challenge_results'],
                               model_path=params['path']['models'],
                               feature_params=params['features'],
                               dataset_evaluation_mode=dataset_evaluation_mode,
-                              classifier_method=params['classifier']['method'],                              
+                              classifier_method=params['classifier']['method'],
                               overwrite=True
                               )
 
@@ -549,7 +552,7 @@ def do_feature_normalization(dataset, feature_normalizer_path, feature_path, dat
 
                 # Accumulate statistics
                 normalizer.accumulate(feature_data)
-            
+
             # Calculate normalization factors
             normalizer.finalize()
 
@@ -594,8 +597,8 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
         evaluation mode, 'full' all material available is considered to belong to one fold.
         (Default value='folds')
 
-    classifier_method : str ['gmm']
-        classifier method, currently only GMM supported
+    classifier_method : str ['gmm', 'rnn']
+        classifier method, currently only GMM and RNN supported
         (Default value='gmm')
 
     overwrite : bool
@@ -617,7 +620,7 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
 
     """
 
-    if classifier_method != 'gmm':
+    if classifier_method not in {'gmm', 'rnn'}:
         raise ValueError("Unknown classifier method ["+classifier_method+"]")
 
     # Check that target path exists, create if not
@@ -639,6 +642,9 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
             # Collect training examples
             file_count = len(dataset.train(fold))
             data = {}
+            data_feat = None
+            data_target = []
+            all_targets = {}
             for item_id, item in enumerate(dataset.train(fold)):
                 progress(title_text='Collecting data',
                          fold=fold,
@@ -655,21 +661,39 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                 # Scale features
                 feature_data = model_container['normalizer'].normalize(feature_data)
 
-                # Store features per class label
-                if item['scene_label'] not in data:
-                    data[item['scene_label']] = feature_data
+                if classifier_method == 'gmm':
+                    # Store features per class label
+                    if item['scene_label'] not in data:
+                        data[item['scene_label']] = feature_data
+                    else:
+                        data[item['scene_label']] = numpy.vstack((data[item['scene_label']], feature_data))
                 else:
-                    data[item['scene_label']] = numpy.vstack((data[item['scene_label']], feature_data))
+                    # Make use of the fact that all samples have the same length
+                    if data_feat is not None:
+                        data_feat = numpy.vstack((data_feat, feature_data[numpy.newaxis]))
+                    else:
+                        data_feat = feature_data[numpy.newaxis]
+                    if item['scene_label'] not in all_targets:
+                        all_targets[item['scene_label']] = len(all_targets)
+                    data_target.append(all_targets[item['scene_label']])
+
+            data_target = numpy.array(data_target).reshape(-1,1)
+            targets = preprocessing.OneHotEncoder().fit_transform(data_target)
 
             # Train models for each class
-            for label in data:
-                progress(title_text='Train models',
-                         fold=fold,
-                         note=label)
-                if classifier_method == 'gmm':
-                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data[label])
-                else:
-                    raise ValueError("Unknown classifier method ["+classifier_method+"]")
+            if classifier_method == 'gmm':
+                for label in data:
+                    progress(title_text='Train models',
+                             fold=fold,
+                             note=label)
+                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data)
+            elif classifier_method == 'rnn':
+                model_container['models']['model'] = RNN(**classifier_params)
+                model_container['models']['model'].fit(data_feat, targets)
+                model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
+                model_container['models']['labels'] = {v: k for k, v in all_targets.items()}
+            else:
+                raise ValueError("Unknown classifier method ["+classifier_method+"]")
 
             # Save models
             save_data(current_model_file, model_container)
@@ -702,8 +726,8 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
         evaluation mode, 'full' all material available is considered to belong to one fold.
         (Default value='folds')
 
-    classifier_method : str ['gmm']
-        classifier method, currently only GMM supported
+    classifier_method : str ['gmm', 'rnn']
+        classifier method, currently only GMM and RNN supported
         (Default value='gmm')
 
     overwrite : bool
@@ -725,7 +749,7 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
 
     """
 
-    if classifier_method != 'gmm':
+    if not classifier_method in {'gmm', 'rnn'}:
         raise ValueError("Unknown classifier method ["+classifier_method+"]")
 
     # Check that target path exists, create if not
@@ -749,16 +773,17 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
                          fold=fold,
                          percentage=(float(file_id) / file_count),
                          note=os.path.split(item['file'])[1])
-                
+
                 # Load features
                 feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
-                
+
                 if os.path.isfile(feature_filename):
                     feature_data = load_data(feature_filename)['feat']
                 else:
                     # Load audio
-                    if os.path.isfile(dataset.relative_to_absolute_path(item['file'])):
-                        y, fs = load_audio(filename=dataset.relative_to_absolute_path(item['file']), mono=True, fs=feature_params['fs'])
+                    audio_filename = dataset.relative_to_absolute_path(item['file'])
+                    if os.path.isfile(audio_filename):
+                        y, fs = load_audio(filename=audio_filename, mono=True, fs=feature_params['fs'])
                     else:
                         raise IOError("Audio file not found [%s]" % (item['file']))
 
@@ -778,6 +803,9 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
                 # Do classification for the block
                 if classifier_method == 'gmm':
                     current_result = do_classification_gmm(feature_data, model_container)
+                elif classifier_method == 'rnn':
+                    class_idx = model_container['models']['model'].predict(feature_data[numpy.newaxis])
+                    current_result = model_container['models']['labels'][class_idx]
                 else:
                     raise ValueError("Unknown classifier method ["+classifier_method+"]")
 
