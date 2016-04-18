@@ -26,7 +26,7 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
 
   def fit(self, X, y):
     self.model_ = self._create_model()
-    self.model_.fit(X, y.toarray(), nb_epoch=20)
+    self.model_.fit(X, y.toarray(), nb_epoch=50, verbose=1, show_accuracy=True)
 
   def predict(self, X):
     return self.model_.predict_classes(X)[0]
@@ -36,9 +36,9 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
 
   def _create_model(self):
     model = Sequential()
-    model.add(LSTM(128, return_sequences=True, input_dim=60))
+    model.add(LSTM(1024, return_sequences=True, input_dim=60))
     model.add(Dropout(0.2))
-    model.add(LSTM(64, return_sequences=False))
+    model.add(LSTM(1024, return_sequences=False))
     model.add(Dropout(0.2))
     model.add(Dense(15))
     model.add(Activation('softmax'))

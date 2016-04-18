@@ -95,8 +95,8 @@ def feature_extraction(y, fs=44100, statistics=True, include_mfcc0=True, include
     mel_spectrum = numpy.dot(mel_basis, magnitude_spectrogram)
     mfcc = librosa.feature.mfcc(S=librosa.logamplitude(mel_spectrum))
     """
-    mfcc = np.abs(librosa.cqt(y+eps, sr=fs, hop_length=mfcc_params['hop_length'], bins_per_octave=36, n_bins=252, real=False))
- 
+    mfcc = numpy.abs(librosa.cqt(y+eps, sr=fs, real=False))
+
     # Collect the feature matrix
     feature_matrix = mfcc
     if include_delta:

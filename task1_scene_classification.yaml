@@ -2,9 +2,9 @@
 # Flow
 # ==========================================================
 flow:
-  initialize: false
-  extract_features: false
-  feature_normalizer: false
+  initialize: true
+  extract_features: true
+  feature_normalizer: true
   train_system: true
   test_system: true
   evaluate_system: true
@@ -16,13 +16,13 @@ general:
   development_dataset: TUTAcousticScenes_2016_DevelopmentSet
   challenge_dataset: TUTAcousticScenes_2016_EvaluationSet
 
-  overwrite: true              # Overwrite previously stored data
+  overwrite: false              # Overwrite previously stored data
 
 # ==========================================================
 # Paths
 # ==========================================================
 path:
-  data: /Users/lemonzi/Projects/DCASE2016-data/
+  data: data
 
   base: system/baseline_dcase2016_task1/
   features: features/
@@ -42,7 +42,7 @@ features:
 
   include_mfcc0: true           #
   include_delta: true           #
-  include_acceleration: true    #
+  include_acceleration: false    #
 
   mfcc:
     window: hamming_asymmetric  # [hann_asymmetric, hamming_asymmetric]
@@ -63,7 +63,7 @@ features:
 # Classifier
 # ==========================================================
 classifier:
-  method: rnn                   # The system supports only gmm and rnn
+  method: gmm                   # The system supports only gmm and rnn
   parameters: !!null            # Parameters are copied from classifier_parameters based on defined method
 
 classifier_parameters:

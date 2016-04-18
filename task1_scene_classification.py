@@ -677,17 +677,16 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                         all_targets[item['scene_label']] = len(all_targets)
                     data_target.append(all_targets[item['scene_label']])
 
-            data_target = numpy.array(data_target).reshape(-1,1)
-            targets = preprocessing.OneHotEncoder().fit_transform(data_target)
-
             # Train models for each class
             if classifier_method == 'gmm':
                 for label in data:
                     progress(title_text='Train models',
                              fold=fold,
                              note=label)
-                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data)
+                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data[label])
             elif classifier_method == 'rnn':
+                data_target = numpy.array(data_target).reshape(-1,1)
+                targets = preprocessing.OneHotEncoder().fit_transform(data_target)
                 model_container['models']['model'] = RNN(**classifier_params)
                 model_container['models']['model'].fit(data_feat, targets)
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
@@ -940,7 +939,7 @@ def do_system_evaluation(dataset, result_path, dataset_evaluation_mode='folds'):
                                                                  results['overall_accuracy'] * 100)+fold_values
 
 if __name__ == "__main__":
-    try:
+    #try:
         sys.exit(main(sys.argv))
-    except (ValueError, IOError) as e:
-        sys.exit(e)
+    #except (ValueError, IOError) as e:
+    #    sys.exit(e)
