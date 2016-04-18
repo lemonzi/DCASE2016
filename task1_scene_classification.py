@@ -684,12 +684,14 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                     progress(title_text='Train models',
                              fold=fold,
                              note=label)
-                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(numpy.vstack(data[label]))
+                    data[label] = numpy.vstack(data[label])
+                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data[label])
             elif classifier_method == 'rnn':
+                data_feat = numpy.vstack(data_feat)
                 data_target = numpy.array(data_target).reshape(-1,1)
                 targets = preprocessing.OneHotEncoder().fit_transform(data_target)
                 model_container['models']['model'] = RNN(**classifier_params)
-                model_container['models']['model'].fit(numpy.vstack(data_feat), targets)
+                model_container['models']['model'].fit(data_feat, targets)
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
                 model_container['models']['labels'] = {v: k for k, v in all_targets.items()}
             else:
