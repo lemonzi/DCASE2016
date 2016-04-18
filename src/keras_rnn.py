@@ -26,7 +26,7 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
 
   def fit(self, X, y):
     self.model_ = self._create_model()
-    self.model_.fit(X, y.toarray(), nb_epoch=50, verbose=1, show_accuracy=True)
+    self.model_.fit(X, y.toarray(), nb_epoch=50, verbose=1)
 
   def predict(self, X):
     return self.model_.predict_classes(X)[0]
@@ -42,5 +42,5 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     model.add(Dropout(0.2))
     model.add(Dense(15))
     model.add(Activation('softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+    model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
     return model
