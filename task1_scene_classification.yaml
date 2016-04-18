@@ -63,7 +63,7 @@ features:
 # Classifier
 # ==========================================================
 classifier:
-  method: gmm                   # The system supports only gmm and rnn
+  method: rnn                   # The system supports only gmm and rnn
   parameters: !!null            # Parameters are copied from classifier_parameters based on defined method
 
 classifier_parameters:
