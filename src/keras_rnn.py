@@ -26,7 +26,7 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
 
   def fit(self, X, y):
     self.model_ = self._create_model(X.shape)
-    self.model_.fit(X, y.toarray(), nb_epoch=50, verbose=1)
+    self.model_.fit(X, y.toarray(), nb_epoch=30, batch_size=16)
 
   def predict(self, X):
     return self.model_.predict_classes(X)[0]
