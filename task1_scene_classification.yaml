@@ -2,7 +2,7 @@
 # Flow
 # ==========================================================
 flow:
-  initialize: true
+  initialize: false
   extract_features: true
   feature_normalizer: true
   train_system: true
