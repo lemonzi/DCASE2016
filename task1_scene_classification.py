@@ -18,6 +18,8 @@ import csv
 import argparse
 import textwrap
 
+from joblib import Parallel, delayed
+
 from sklearn import mixture
 from sklearn import preprocessing
 
@@ -464,33 +466,35 @@ def do_feature_extraction(files, dataset, feature_path, params, overwrite=False)
 
     # Check that target path exists, create if not
     check_path(feature_path)
+    Parallel(n_jobs=8)(delayed(run_job)(file_id, audio_filename, files, dataset, feature_path, params, overwrite) for file_id, audio_filename in enumerate(files))
 
-    for file_id, audio_filename in enumerate(files):
-        # Get feature filename
-        current_feature_file = get_feature_filename(audio_file=os.path.split(audio_filename)[1], path=feature_path)
 
-        progress(title_text='Extracting',
-                 percentage=(float(file_id) / len(files)),
-                 note=os.path.split(audio_filename)[1])
+def run_job(file_id, audio_filename, files, dataset, feature_path, params, overwrite):
+    # Get feature filename
+    current_feature_file = get_feature_filename(audio_file=os.path.split(audio_filename)[1], path=feature_path)
 
-        if not os.path.isfile(current_feature_file) or overwrite:
-            # Load audio data
-            if os.path.isfile(dataset.relative_to_absolute_path(audio_filename)):
-                y, fs = load_audio(filename=dataset.relative_to_absolute_path(audio_filename), mono=True, fs=params['fs'])
-            else:
-                raise IOError("Audio file not found [%s]" % audio_filename)
+    progress(title_text='Extracting',
+             percentage=(float(file_id) / len(files)),
+             note=os.path.split(audio_filename)[1])
 
-            # Extract features
-            feature_data = feature_extraction(y=y,
-                                              fs=fs,
-                                              include_mfcc0=params['include_mfcc0'],
-                                              include_delta=params['include_delta'],
-                                              include_acceleration=params['include_acceleration'],
-                                              mfcc_params=params['mfcc'],
-                                              delta_params=params['mfcc_delta'],
-                                              acceleration_params=params['mfcc_acceleration'])
-            # Save
-            save_data(current_feature_file, feature_data)
+    if not os.path.isfile(current_feature_file) or overwrite:
+        # Load audio data
+        if os.path.isfile(dataset.relative_to_absolute_path(audio_filename)):
+            y, fs = load_audio(filename=dataset.relative_to_absolute_path(audio_filename), mono=True, fs=params['fs'])
+        else:
+            raise IOError("Audio file not found [%s]" % audio_filename)
+
+        # Extract features
+        feature_data = feature_extraction(y=y,
+                                          fs=fs,
+                                          include_mfcc0=params['include_mfcc0'],
+                                          include_delta=params['include_delta'],
+                                          include_acceleration=params['include_acceleration'],
+                                          mfcc_params=params['mfcc'],
+                                          delta_params=params['mfcc_delta'],
+                                          acceleration_params=params['mfcc_acceleration'])
+        # Save
+        save_data(current_feature_file, feature_data)
 
 
 def do_feature_normalization(dataset, feature_normalizer_path, feature_path, dataset_evaluation_mode='folds', overwrite=False):

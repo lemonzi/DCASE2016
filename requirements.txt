@@ -5,3 +5,4 @@ pyyaml>=3.11
 librosa>=0.4.0
 keras
 h5py
+joblib
