@@ -646,7 +646,7 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
             # Collect training examples
             file_count = len(dataset.train(fold))
             data = {}
-            data_feat = None
+            data_feat = []
             data_target = []
             all_targets = {}
             for item_id, item in enumerate(dataset.train(fold)):
@@ -668,15 +668,12 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                 if classifier_method == 'gmm':
                     # Store features per class label
                     if item['scene_label'] not in data:
-                        data[item['scene_label']] = feature_data
+                        data[item['scene_label']] = [feature_data]
                     else:
-                        data[item['scene_label']] = numpy.vstack((data[item['scene_label']], feature_data))
+                        data[item['scene_label']].append(feature_data)
                 else:
                     # Make use of the fact that all samples have the same length
-                    if data_feat is not None:
-                        data_feat = numpy.vstack((data_feat, feature_data[numpy.newaxis]))
-                    else:
-                        data_feat = feature_data[numpy.newaxis]
+                    data_feat.append(feature_data[numpy.newaxis])
                     if item['scene_label'] not in all_targets:
                         all_targets[item['scene_label']] = len(all_targets)
                     data_target.append(all_targets[item['scene_label']])
@@ -687,12 +684,12 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                     progress(title_text='Train models',
                              fold=fold,
                              note=label)
-                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data[label])
+                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(numpy.vstack(data[label]))
             elif classifier_method == 'rnn':
                 data_target = numpy.array(data_target).reshape(-1,1)
                 targets = preprocessing.OneHotEncoder().fit_transform(data_target)
                 model_container['models']['model'] = RNN(**classifier_params)
-                model_container['models']['model'].fit(data_feat, targets)
+                model_container['models']['model'].fit(numpy.vstack(data_feat), targets)
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
                 model_container['models']['labels'] = {v: k for k, v in all_targets.items()}
             else:
