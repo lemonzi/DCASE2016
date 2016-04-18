@@ -3,7 +3,7 @@
 # ==========================================================
 flow:
   initialize: false
-  extract_features: true
+  extract_features: false
   feature_normalizer: true
   train_system: true
   test_system: true

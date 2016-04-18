@@ -25,7 +25,7 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     self.model_.load_weights(self.filename)
 
   def fit(self, X, y):
-    self.model_ = self._create_model()
+    self.model_ = self._create_model(X.shape)
     self.model_.fit(X, y.toarray(), nb_epoch=50, verbose=1)
 
   def predict(self, X):
@@ -34,9 +34,9 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
   def set_filename(self, filename):
     self.filename = filename
 
-  def _create_model(self):
+  def _create_model(self, shape):
     model = Sequential()
-    model.add(LSTM(1024, return_sequences=True, input_dim=60))
+    model.add(LSTM(1024, return_sequences=True, input_dim=shape[2]))
     model.add(Dropout(0.2))
     model.add(LSTM(1024, return_sequences=False))
     model.add(Dropout(0.2))
