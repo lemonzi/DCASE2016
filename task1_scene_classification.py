@@ -3,6 +3,9 @@
 #
 # DCASE 2016::Acoustic Scene Classification / Baseline System
 
+import matplotlib
+matplotlib.use('Agg')
+
 from src.ui import *
 from src.general import *
 from src.files import *
@@ -12,6 +15,7 @@ from src.dataset import *
 from src.evaluation import *
 
 from src.keras_rnn import RNN
+from src.extend_dataset import extend_dataset
 
 import numpy
 import csv
@@ -485,14 +489,15 @@ def run_job(file_id, audio_filename, files, dataset, feature_path, params, overw
             raise IOError("Audio file not found [%s]" % audio_filename)
 
         # Extract features
-        feature_data = feature_extraction(y=y,
-                                          fs=fs,
-                                          include_mfcc0=params['include_mfcc0'],
-                                          include_delta=params['include_delta'],
-                                          include_acceleration=params['include_acceleration'],
-                                          mfcc_params=params['mfcc'],
-                                          delta_params=params['mfcc_delta'],
-                                          acceleration_params=params['mfcc_acceleration'])
+        extended = extend_dataset(y, fs)
+        feature_data = [feature_extraction(y=y_ex,
+                               fs=fs,
+                               include_mfcc0=params['include_mfcc0'],
+                               include_delta=params['include_delta'],
+                               include_acceleration=params['include_acceleration'],
+                               mfcc_params=params['mfcc'],
+                               delta_params=params['mfcc_delta'],
+                               acceleration_params=params['mfcc_acceleration']) for y_ex in extended]
         # Save
         save_data(current_feature_file, feature_data)
 
@@ -550,12 +555,13 @@ def do_feature_normalization(dataset, feature_normalizer_path, feature_path, dat
                          note=os.path.split(item['file'])[1])
                 # Load features
                 if os.path.isfile(get_feature_filename(audio_file=item['file'], path=feature_path)):
-                    feature_data = load_data(get_feature_filename(audio_file=item['file'], path=feature_path))['stat']
+                    feature_data = [x['stat'] for x in load_data(get_feature_filename(audio_file=item['file'], path=feature_path))]
                 else:
                     raise IOError("Feature file not found [%s]" % (item['file']))
 
                 # Accumulate statistics
-                normalizer.accumulate(feature_data)
+                for f in feature_data:
+                    normalizer.accumulate(f)
 
             # Calculate normalization factors
             normalizer.finalize()
@@ -658,28 +664,31 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                 # Load features
                 feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
                 if os.path.isfile(feature_filename):
-                    feature_data = load_data(feature_filename)['feat']
+                    feature_data = [x['feat'] for x in load_data(feature_filename)]
                 else:
                     raise IOError("Features not found [%s]" % (item['file']))
 
                 # Scale features
-                feature_data = model_container['normalizer'].normalize(feature_data)
+                feature_data = [model_container['normalizer'].normalize(f) for f in feature_data]
 
-                if classifier_method == 'gmm':
-                    # Store features per class label
-                    if item['scene_label'] not in data:
-                        data[item['scene_label']] = [feature_data]
+                for f in feature_data:
+                    if classifier_method == 'gmm':
+                        # Store features per class label
+                        if item['scene_label'] not in data:
+                            data[item['scene_label']] = [f]
+                        else:
+                            data[item['scene_label']].append(f)
                     else:
-                        data[item['scene_label']].append(feature_data)
-                else:
-                    # Make use of the fact that all samples have the same length
-                    data_feat.append(feature_data[numpy.newaxis])
-                    if item['scene_label'] not in all_targets:
-                        all_targets[item['scene_label']] = len(all_targets)
-                    data_target.append(all_targets[item['scene_label']])
+                        # Make use of the fact that all samples have the same length
+                        data_feat.append(f[numpy.newaxis])
+                        if item['scene_label'] not in all_targets:
+                            all_targets[item['scene_label']] = len(all_targets)
+                        else:
+                            data_target.append(all_targets[item['scene_label']])
 
-            # Train models for each class
+            # Train models
             if classifier_method == 'gmm':
+                # One model per class
                 for label in data:
                     progress(title_text='Train models',
                              fold=fold,
@@ -690,6 +699,9 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                 data_feat = numpy.vstack(data_feat)
                 data_target = numpy.array(data_target).reshape(-1,1)
                 targets = preprocessing.OneHotEncoder().fit_transform(data_target)
+                order = numpy.random.permutation(len(data_target))
+                data_feat = data_feat[order,:,:]
+                targets = targets[order,:]
                 model_container['models']['model'] = RNN(**classifier_params)
                 model_container['models']['model'].fit(data_feat, targets)
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')

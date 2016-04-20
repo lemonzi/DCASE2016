@@ -3,7 +3,7 @@
 # ==========================================================
 flow:
   initialize: false
-  extract_features: false
+  extract_features: true
   feature_normalizer: true
   train_system: true
   test_system: true
@@ -16,7 +16,7 @@ general:
   development_dataset: TUTAcousticScenes_2016_DevelopmentSet
   challenge_dataset: TUTAcousticScenes_2016_EvaluationSet
 
-  overwrite: false              # Overwrite previously stored data
+  overwrite: true              # Overwrite previously stored data
 
 # ==========================================================
 # Paths
@@ -41,14 +41,14 @@ features:
   hop_length_seconds: 0.02
 
   include_mfcc0: true           #
-  include_delta: true           #
-  include_acceleration: false    #
+  include_delta: false           #
+  include_acceleration: false   #
 
   mfcc:
     window: hamming_asymmetric  # [hann_asymmetric, hamming_asymmetric]
-    n_mfcc: 20                  # Number of MFCC coefficients
-    n_mels: 40                  # Number of MEL bands used
-    n_fft: 2048                 # FFT length
+    n_mfcc: 30                  # Number of MFCC coefficients
+    n_mels: 60                  # Number of MEL bands used
+    n_fft: 1024                 # FFT length
     fmin: 0                     # Minimum frequency when constructing MEL bands
     fmax: 22050                 # Maximum frequency when constructing MEL band
     htk: false                  # Switch for HTK-styled MEL-frequency equation
@@ -79,4 +79,5 @@ classifier_parameters:
     params: wmc
     init_params: wmc
   rnn:
-    foo: bar
+    dropout: 0.01
+    epochs: 15
