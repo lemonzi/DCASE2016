@@ -558,7 +558,8 @@ def do_feature_normalization(dataset, feature_normalizer_path, feature_path, dat
                          note=os.path.split(item['file'])[1])
                 # Load features
                 if os.path.isfile(get_feature_filename(audio_file=item['file'], path=feature_path)):
-                    feature_data = [x['stat'] for x in load_data(get_feature_filename(audio_file=item['file'], path=feature_path))]
+                    feature_list = load_data(get_feature_filename(audio_file=item['file'], path=feature_path))
+                    feature_data = [x['stat'] for x in feature_list]
                 else:
                     raise IOError("Feature file not found [%s]" % (item['file']))
 
@@ -633,7 +634,7 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
 
     """
 
-    if classifier_method not in {'gmm', 'rnn'}:
+    if classifier_method not in {'rnn'}:
         raise ValueError("Unknown classifier method ["+classifier_method+"]")
 
     # Check that target path exists, create if not
@@ -652,70 +653,62 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
             # Initialize model container
             model_container = {'normalizer': normalizer, 'models': {}}
 
-            # Collect training examples
-            file_count = len(dataset.train(fold))
-            data = {}
-            data_feat = []
+            # Collect labels
             data_target = []
             all_targets = {}
-            for item_id, item in enumerate(dataset.train(fold)):
-                progress(title_text='Collecting data',
-                         fold=fold,
-                         percentage=(float(item_id) / file_count),
-                         note=os.path.split(item['file'])[1])
+            for item in dataset.train(fold):
+                if item['scene_label'] not in all_targets:
+                    all_targets[item['scene_label']] = len(all_targets)
+                data_target.append(all_targets[item['scene_label']])
+            data_labels = numpy.array(data_target).reshape(-1,1)
+            onehot = preprocessing.OneHotEncoder()
+            onehot.fit(data_labels)
 
-                # Load features
-                feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
-                if os.path.isfile(feature_filename):
-                    feature_data = [x['feat'] for x in load_data(feature_filename)]
-                else:
-                    raise IOError("Features not found [%s]" % (item['file']))
-
-                # Scale features
-                feature_data = [model_container['normalizer'].normalize(f) for f in feature_data]
-
-                for f in feature_data:
-                    if classifier_method == 'gmm':
-                        # Store features per class label
-                        if item['scene_label'] not in data:
-                            data[item['scene_label']] = [f]
+            # Collect training examples
+            def super_yielder():
+                file_count = len(dataset.train(fold))
+                while True:
+                    for item_id, item in enumerate(dataset.train(fold)):
+                        # Load features
+                        feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
+                        if os.path.isfile(feature_filename):
+                            feature_data = [x['feat'] for x in load_data(feature_filename)]
                         else:
-                            data[item['scene_label']].append(f)
-                    else:
-                        # Make use of the fact that all samples have the same length
-                        data_feat.append(f[numpy.newaxis, :2000])
-                        if item['scene_label'] not in all_targets:
-                            all_targets[item['scene_label']] = len(all_targets)
-                        data_target.append(all_targets[item['scene_label']])
+                            raise IOError("Features not found [%s]" % (item['file']))
+
+                        # Scale features
+                        feature_data = [model_container['normalizer'].normalize(f) for f in feature_data]
+
+                        data = {}
+                        data_feat = []
+                        data_target = []
+                        for f in feature_data:
+                            f = f[:2000] # TODO: this is a temporary fix for non-equal input features
+                            data_feat.append(f[numpy.newaxis])
+                            data_target.append(all_targets[item['scene_label']])
+                        data_feat = numpy.vstack(data_feat)
+                        data_labels = numpy.array(data_target).reshape(-1,1)
+                        targets = onehot.transform(data_labels)
+                        yield data_feat, targets.toarray()
 
             # Train models
-            if classifier_method == 'gmm':
-                # One model per class
-                for label in data:
-                    progress(title_text='Train models',
-                             fold=fold,
-                             note=label)
-                    data[label] = numpy.vstack(data[label])
-                    model_container['models'][label] = mixture.GMM(**classifier_params).fit(data[label])
-            elif classifier_method == 'rnn':
-                data_feat = numpy.vstack(data_feat)
-                data_labels = numpy.array(data_target).reshape(-1,1)
-                onehot = preprocessing.OneHotEncoder()
-                targets = onehot.fit_transform(data_labels)
-                order = numpy.random.permutation(len(data_labels))
-                data_feat = data_feat[order,:,:]
-                targets = targets[order,:]
+            if classifier_method == 'rnn':
+                # order = numpy.random.permutation(len(data_labels))
+                # data_feat = data_feat[order,:,:]
+                # targets = targets[order,:]
                 """
                 CAREFUL!! This is only for graphing purposes
                 """
                 test_data, test_labels = collect_test_data(dataset, fold, normalizer, feature_path, feature_params)
                 test_labels = [all_targets[lab] for lab in test_labels]
-                test_target = onehot.transform(numpy.array(test_labels).reshape(-1,1))
-                classifier_params['validation_data'] = (test_data, test_target)
+                test_target = onehot.transform(numpy.array(test_labels).reshape(-1,1)).toarray()
                 """
                 """
                 model_container['models']['model'] = RNN(**classifier_params)
-                model_container['models']['model'].fit(data_feat, targets)
+                model_container['models']['model'].fit(super_yielder(),
+                                                       validation_data=(test_data,test_target),
+                                                       samples=len(dataset.train(fold)))
+                # model_container['models']['model'].fit(data_feat, targets, validation_data=(test_data,test_target))
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
                 model_container['models']['labels'] = {v: k for k, v in all_targets.items()}
             else:
@@ -726,7 +719,7 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
 
 
 def do_system_testing(dataset, result_path, feature_path, model_path, feature_params,
-                      dataset_evaluation_mode='folds', classifier_method='gmm', overwrite=False):
+                      dataset_evaluation_mode='folds', classifier_method='rnn', overwrite=False):
     """System testing.
 
     If extracted features are not found from disk, they are extracted but not saved.
@@ -775,7 +768,7 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
 
     """
 
-    if not classifier_method in {'gmm', 'rnn'}:
+    if not classifier_method in {'rnn'}:
         raise ValueError("Unknown classifier method ["+classifier_method+"]")
 
     # Check that target path exists, create if not
@@ -827,9 +820,7 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
                 feature_data = model_container['normalizer'].normalize(feature_data)
 
                 # Do classification for the block
-                if classifier_method == 'gmm':
-                    current_result = do_classification_gmm(feature_data, model_container)
-                elif classifier_method == 'rnn':
+                if classifier_method == 'rnn':
                     class_idx = model_container['models']['model'].predict(feature_data[numpy.newaxis])
                     current_result = model_container['models']['labels'][class_idx]
                 else:
@@ -851,11 +842,6 @@ def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
     features = []
     y_true = []
     for file_id, item in enumerate(dataset.test(fold)):
-        progress(title_text='Testing',
-                 fold=fold,
-                 percentage=(float(file_id) / file_count),
-                 note=os.path.split(item['file'])[1])
-
         # Load features
         feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
 
@@ -890,47 +876,6 @@ def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
 
     features = numpy.vstack(features)
     return features, y_true
-
-
-def do_classification_gmm(feature_data, model_container):
-    """GMM classification for give feature matrix
-
-    model container format:
-
-    {
-        'normalizer': normalizer class
-        'models' :
-            {
-                'office' : mixture.GMM class
-                'home' : mixture.GMM class
-                ...
-            }
-    }
-
-    Parameters
-    ----------
-    feature_data : numpy.ndarray [shape=(t, feature vector length)]
-        feature matrix
-
-    model_container : dict
-        model container
-
-    Returns
-    -------
-    result : str
-        classification result as scene label
-
-    """
-
-    # Initialize log-likelihood matrix to -inf
-    logls = numpy.empty(len(model_container['models']))
-    logls.fill(-numpy.inf)
-
-    for label_id, label in enumerate(model_container['models']):
-        logls[label_id] = numpy.sum(model_container['models'][label].score(feature_data))
-
-    classification_result_id = numpy.argmax(logls)
-    return model_container['models'].keys()[classification_result_id]
 
 
 def do_system_evaluation(dataset, result_path, dataset_evaluation_mode='folds'):

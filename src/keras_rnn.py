@@ -27,10 +27,11 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     self.model_ = self._create_model(self.shape_)
     self.model_.load_weights(self.filename)
 
-  def fit(self, X, y):
-    self.shape_ = X.shape
-    self.model_ = self._create_model(X.shape)
-    self.model_.fit(X, y.toarray(), nb_epoch=self.epochs, batch_size=32, validation_split=0.1)
+  def fit(self, X, validation_data=None, samples=0):
+    #self.shape_ = X.shape
+    self.shape_ = (1,2000,120)
+    self.model_ = self._create_model(self.shape_)
+    self.model_.fit_generator(X, samples, self.epochs, validation_data=validation_data)
 
   def predict(self, X):
     return self.model_.predict_classes(X)[0]
@@ -43,7 +44,7 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     return self._conv_model(shape)
 
   def _conv_model(self, shape):
-    filter_width = 16
+    filter_width = 8
     n_filters = 512
     timesteps = shape[1]
     features = shape[2]
