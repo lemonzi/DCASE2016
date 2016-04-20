@@ -4,6 +4,9 @@ import librosa
 from numpy import append, split
 
 def extend_dataset(y, sr):
+
+        return y
+
 	# Make 2x faster
 	D       = librosa.stft(y, n_fft=2048, hop_length=512)
 

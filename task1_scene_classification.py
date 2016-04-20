@@ -685,8 +685,7 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                         if batch_idx == 0:
                             data_feat = []
                             data_target = []
-                        # f = random.choice(feature_data)
-                        f = feature_data[2]
+                        f = random.choice(feature_data)
                         data_feat.append(f[numpy.newaxis])
                         data_target.append(all_targets[item['scene_label']])
                         if batch_idx == 31:

@@ -5,7 +5,7 @@ flow:
   initialize: false
   extract_features: false
   feature_normalizer: false
-  train_system: false
+  train_system: true
   test_system: true
   evaluate_system: true
 
