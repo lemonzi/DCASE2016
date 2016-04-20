@@ -24,10 +24,10 @@ def extend_dataset(y, sr):
 	## Frequency scaling
 	y_pitch_up = librosa.effects.pitch_shift(y, sr, n_steps=4)
 	y_pitch_up = y_pitch_up[:len(y)]
-	y_pitch_down = librosa.effects.pitch_shift(y, sr, n_steps=-4)
-	y_pitch_down = y_pitch_down[:len(y)]
+	#y_pitch_down = librosa.effects.pitch_shift(y, sr, n_steps=-4)
+	#y_pitch_down = y_pitch_down[:len(y)]
 
-	return (y_fast, y_slow1, y_slow2, y_pitch_up, y_pitch_down)
+	return (y_fast, y_slow1, y_pitch_up)
 
 if __name__ == '__main__':
 	y, sr   = librosa.load(librosa.util.example_audio_file())

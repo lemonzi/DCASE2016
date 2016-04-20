@@ -3,8 +3,8 @@
 # ==========================================================
 flow:
   initialize: false
-  extract_features: true
-  feature_normalizer: true
+  extract_features: false
+  feature_normalizer: false
   train_system: true
   test_system: true
   evaluate_system: true
@@ -79,5 +79,5 @@ classifier_parameters:
     params: wmc
     init_params: wmc
   rnn:
-    dropout: 0
+    dropout: 0.5
     epochs: 50
