@@ -32,7 +32,7 @@ def extend_dataset(y, sr):
         y_slow1 = y_slow1[:samples]
         y_pitch_up = y_pitch_up[:samples]
 
-	return (y_fast, y_slow1, y_pitch_up)
+	return (y, y_fast, y_slow1, y_pitch_up)
 
 if __name__ == '__main__':
 	y, sr   = librosa.load(librosa.util.example_audio_file())

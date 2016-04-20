@@ -80,6 +80,7 @@ def feature_extraction(y, fs=44100, statistics=True, include_mfcc0=True, include
 
     # Calculate Static Coefficients
     """
+    """
     magnitude_spectrogram = numpy.abs(librosa.stft(y + eps,
                                                    n_fft=mfcc_params['n_fft'],
                                                    win_length=mfcc_params['win_length'],
@@ -93,10 +94,11 @@ def feature_extraction(y, fs=44100, statistics=True, include_mfcc0=True, include
                                     fmax=mfcc_params['fmax'],
                                     htk=mfcc_params['htk'])
     mel_spectrum = numpy.dot(mel_basis, magnitude_spectrogram)
-    mfcc = librosa.feature.mfcc(S=librosa.logamplitude(mel_spectrum))
+    mfcc = librosa.feature.mfcc(S=librosa.logamplitude(mel_spectrum), n_mfcc=mfcc_params['n_mfcc'])
     """
     mfcc = numpy.abs(librosa.cqt(y, sr=fs, hop_length=512, fmin=20.0, n_bins=120, bins_per_octave=12, filter_scale=0.5, real=False))
-   
+    """
+
 
     # Collect the feature matrix
     feature_matrix = mfcc

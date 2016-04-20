@@ -21,6 +21,7 @@ import numpy
 import csv
 import argparse
 import textwrap
+import random
 
 from joblib import Parallel, delayed
 
@@ -666,9 +667,11 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
 
             # Collect training examples
             def super_yielder():
-                file_count = len(dataset.train(fold))
                 while True:
-                    for item_id, item in enumerate(dataset.train(fold)):
+                    order = numpy.random.permutation(len(dataset.train(fold)))
+                    batch_idx = 0
+                    for item_idx in order:
+                        item = dataset.train(fold)[item_idx]
                         # Load features
                         feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
                         if os.path.isfile(feature_filename):
@@ -679,23 +682,25 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                         # Scale features
                         feature_data = [model_container['normalizer'].normalize(f) for f in feature_data]
 
-                        data = {}
-                        data_feat = []
-                        data_target = []
-                        for f in feature_data:
-                            f = f[:2000] # TODO: this is a temporary fix for non-equal input features
-                            data_feat.append(f[numpy.newaxis])
-                            data_target.append(all_targets[item['scene_label']])
-                        data_feat = numpy.vstack(data_feat)
-                        data_labels = numpy.array(data_target).reshape(-1,1)
-                        targets = onehot.transform(data_labels)
-                        yield data_feat, targets.toarray()
+                        if batch_idx == 0:
+                            data_feat = []
+                            data_target = []
+                        # f = random.choice(feature_data)
+                        f = feature_data[2]
+                        data_feat.append(f[numpy.newaxis])
+                        data_target.append(all_targets[item['scene_label']])
+                        if batch_idx == 31:
+                            data_labels = onehot.transform(numpy.array(data_target).reshape(-1,1))
+                            yield numpy.vstack(data_feat), data_labels.toarray()
+                            batch_idx = 0
+                        else:
+                            batch_idx = batch_idx + 1
+                    if not batch_idx == 0:
+                        data_labels = onehot.transform(numpy.array(data_target).reshape(-1,1))
+                        yield numpy.vstack(data_feat), data_labels.toarray()
 
             # Train models
             if classifier_method == 'rnn':
-                # order = numpy.random.permutation(len(data_labels))
-                # data_feat = data_feat[order,:,:]
-                # targets = targets[order,:]
                 """
                 CAREFUL!! This is only for graphing purposes
                 """
@@ -706,8 +711,9 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                 """
                 model_container['models']['model'] = RNN(**classifier_params)
                 model_container['models']['model'].fit(super_yielder(),
-                                                       validation_data=(test_data,test_target),
-                                                       samples=len(dataset.train(fold)))
+                                                       validation_data=(test_data, test_target),
+                                                       samples=len(dataset.train(fold)),
+                                                       shape=test_data.shape)
                 # model_container['models']['model'].fit(data_feat, targets, validation_data=(test_data,test_target))
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
                 model_container['models']['labels'] = {v: k for k, v in all_targets.items()}
@@ -797,7 +803,10 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
                 feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
 
                 if os.path.isfile(feature_filename):
-                    feature_data = load_data(feature_filename)['feat']
+                    feature_data = load_data(feature_filename)
+                    if type(feature_data) == list:
+                        feature_data = feature_data[0]
+                    feature_data = feature_data['feat']
                 else:
                     # Load audio
                     audio_filename = dataset.relative_to_absolute_path(item['file'])
@@ -870,7 +879,7 @@ def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
 
         # Normalize features
         feature_data = normalizer.normalize(feature_data)
-        features.append(feature_data[numpy.newaxis])
+        features.append(feature_data[numpy.newaxis, :2000])
 
         y_true.append(dataset.file_meta(item['file'])[0]['scene_label'])
 

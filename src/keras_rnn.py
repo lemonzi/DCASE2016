@@ -27,11 +27,10 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     self.model_ = self._create_model(self.shape_)
     self.model_.load_weights(self.filename)
 
-  def fit(self, X, validation_data=None, samples=0):
-    #self.shape_ = X.shape
-    self.shape_ = (1,2000,120)
+  def fit(self, X, validation_data=None, samples=0, shape=(1,2000,60)):
+    self.shape_ = shape
     self.model_ = self._create_model(self.shape_)
-    self.model_.fit_generator(X, samples, self.epochs, validation_data=validation_data)
+    self.model_.fit_generator(X, samples, self.epochs, validation_data=validation_data, verbose=2)
 
   def predict(self, X):
     return self.model_.predict_classes(X)[0]
@@ -41,10 +40,23 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
 
   def _create_model(self, shape):
     print(shape)
-    return self._conv_model(shape)
+    return self._simple_model(shape)
+
+  def _simple_model(self, shape):
+    timesteps = shape[1]
+    features = shape[2]
+    model = Sequential()
+    model.add(TimeDistributed(Dense(512), input_shape=(timesteps,features)))
+    model.add(AveragePooling1D(timesteps, input_shape=(timesteps,features)))
+    model.add(Dropout(self.dropout))
+    model.add(Flatten())
+    model.add(Dense(15))
+    model.add(Activation('softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
+    return model
 
   def _conv_model(self, shape):
-    filter_width = 8
+    filter_width = 16
     n_filters = 512
     timesteps = shape[1]
     features = shape[2]
@@ -56,21 +68,19 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     model.add(Dropout(self.dropout))
     model.add(Convolution1D(n_filters, filter_width, activation='relu'))
     timesteps -= filter_width - 1
-    model.add(MaxPooling1D(filter_width))
-    timesteps /= filter_width
-    model.add(Dropout(self.dropout))
-    model.add(Convolution1D(n_filters, filter_width, activation='relu'))
-    timesteps -= filter_width - 1
     model.add(MaxPooling1D(timesteps))
     model.add(Dropout(self.dropout))
     model.add(Flatten())
-    model.add(Dense(512))
+    model.add(Dense(1024))
+    model.add(Activation('relu'))
+    model.add(Dropout(self.dropout))
+    model.add(Dense(1024))
     model.add(Activation('relu'))
     model.add(Dense(15))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])
-    from keras.utils.visualize_util import plot
-    plot(model, to_file='model.png', show_shapes=True)
+    # from keras.utils.visualize_util import plot
+    # plot(model, to_file='model.png', show_shapes=True)
     return model
 
   def _lstm_model(self, shape):
