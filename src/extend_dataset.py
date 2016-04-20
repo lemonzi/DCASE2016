@@ -10,6 +10,7 @@ def extend_dataset(y, sr):
 
 	# Concatenate two 2x frames together
 	y_fast = append(y_fast, y_fast)
+	y_fast = y_fast[:len(y)]
 
 	# Make 2x slower
 	D_slow  = librosa.phase_vocoder(D, 0.5, hop_length=512)
@@ -17,10 +18,14 @@ def extend_dataset(y, sr):
 
 	# split two 0.5x frames together
 	y_slow1, y_slow2 = split(y_slow, 2)
+	y_slow1 = y_slow1[:len(y)]
+	y_slow2 = y_slow2[:len(y)]
 
 	## Frequency scaling
 	y_pitch_up = librosa.effects.pitch_shift(y, sr, n_steps=4)
+	y_pitch_up = y_pitch_up[:len(y)]
 	y_pitch_down = librosa.effects.pitch_shift(y, sr, n_steps=-4)
+	y_pitch_down = y_pitch_down[:len(y)]
 
 	return (y_fast, y_slow1, y_slow2, y_pitch_up, y_pitch_down)
 

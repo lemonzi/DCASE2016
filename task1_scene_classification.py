@@ -697,11 +697,20 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                     model_container['models'][label] = mixture.GMM(**classifier_params).fit(data[label])
             elif classifier_method == 'rnn':
                 data_feat = numpy.vstack(data_feat)
-                data_target = numpy.array(data_target).reshape(-1,1)
-                targets = preprocessing.OneHotEncoder().fit_transform(data_target)
-                order = numpy.random.permutation(len(data_target))
+                data_labels = numpy.array(data_target).reshape(-1,1)
+                onehot = preprocessing.OneHotEncoder()
+                targets = onehot.fit_transform(data_labels)
+                order = numpy.random.permutation(len(data_labels))
                 data_feat = data_feat[order,:,:]
                 targets = targets[order,:]
+                """
+                CAREFUL!! This is only for graphing purposes 
+                """
+                test_data, test_labels = collect_test_data(dataset, fold, normalizer, feature_path, feature_params)
+                test_target = onehot.transform(test_labels)
+                classifier_params['validation_data'] = (test_data, test_target)
+                """
+                """
                 model_container['models']['model'] = RNN(**classifier_params)
                 model_container['models']['model'].fit(data_feat, targets)
                 model_container['models']['model'].set_filename(current_model_file + '_weights.h5')
@@ -831,6 +840,50 @@ def do_system_testing(dataset, result_path, feature_path, model_path, feature_pa
                 writer = csv.writer(f, delimiter='\t')
                 for result_item in results:
                     writer.writerow(result_item)
+
+
+def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
+
+    file_count = len(dataset.test(fold))
+    features = []
+    y_true = []
+    for file_id, item in enumerate(dataset.test(fold)):
+        progress(title_text='Testing',
+                 fold=fold,
+                 percentage=(float(file_id) / file_count),
+                 note=os.path.split(item['file'])[1])
+
+        # Load features
+        feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
+
+        if os.path.isfile(feature_filename):
+            feature_data = load_data(feature_filename)['feat']
+        else:
+            # Load audio
+            audio_filename = dataset.relative_to_absolute_path(item['file'])
+            if os.path.isfile(audio_filename):
+                y, fs = load_audio(filename=audio_filename, mono=True, fs=feature_params['fs'])
+            else:
+                raise IOError("Audio file not found [%s]" % (item['file']))
+
+            feature_data = feature_extraction(y=y,
+                                              fs=fs,
+                                              include_mfcc0=feature_params['include_mfcc0'],
+                                              include_delta=feature_params['include_delta'],
+                                              include_acceleration=feature_params['include_acceleration'],
+                                              mfcc_params=feature_params['mfcc'],
+                                              delta_params=feature_params['mfcc_delta'],
+                                              acceleration_params=feature_params['mfcc_acceleration'],
+                                              statistics=False)['feat']
+
+        # Normalize features
+        feature_data = normalizer.normalize(feature_data)
+        features.append(feature_data[numpy.newaxis])
+
+        y_true.append(dataset.file_meta(iteam['file'])[0]['scene_label'])
+
+    features = numpy.vstack(features)
+    return features, y_true
 
 
 def do_classification_gmm(feature_data, model_container):
