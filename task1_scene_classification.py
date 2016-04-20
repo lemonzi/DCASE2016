@@ -141,7 +141,8 @@ def main(argv):
                            classifier_params=params['classifier']['parameters'],
                            classifier_method=params['classifier']['method'],
                            dataset_evaluation_mode=dataset_evaluation_mode,
-                           overwrite=params['general']['overwrite']
+                           overwrite=params['general']['overwrite'],
+                           feature_params=params['features']
                            )
 
         foot()
@@ -471,6 +472,8 @@ def do_feature_extraction(files, dataset, feature_path, params, overwrite=False)
     # Check that target path exists, create if not
     check_path(feature_path)
     Parallel(n_jobs=8)(delayed(run_job)(file_id, audio_filename, files, dataset, feature_path, params, overwrite) for file_id, audio_filename in enumerate(files))
+    # for file_id, audio_filename in enumerate(files):
+    #     run_job(file_id, audio_filename, files, dataset, feature_path, params, overwrite)
 
 
 def run_job(file_id, audio_filename, files, dataset, feature_path, params, overwrite):
@@ -571,7 +574,7 @@ def do_feature_normalization(dataset, feature_normalizer_path, feature_path, dat
 
 
 def do_system_training(dataset, model_path, feature_normalizer_path, feature_path, classifier_params,
-                       dataset_evaluation_mode='folds', classifier_method='gmm', overwrite=False):
+                       dataset_evaluation_mode='folds', classifier_method='gmm', overwrite=False, feature_params=None):
     """System training
 
     model container format:
@@ -680,11 +683,10 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                             data[item['scene_label']].append(f)
                     else:
                         # Make use of the fact that all samples have the same length
-                        data_feat.append(f[numpy.newaxis])
+                        data_feat.append(f[numpy.newaxis, :2000])
                         if item['scene_label'] not in all_targets:
                             all_targets[item['scene_label']] = len(all_targets)
-                        else:
-                            data_target.append(all_targets[item['scene_label']])
+                        data_target.append(all_targets[item['scene_label']])
 
             # Train models
             if classifier_method == 'gmm':
@@ -704,10 +706,11 @@ def do_system_training(dataset, model_path, feature_normalizer_path, feature_pat
                 data_feat = data_feat[order,:,:]
                 targets = targets[order,:]
                 """
-                CAREFUL!! This is only for graphing purposes 
+                CAREFUL!! This is only for graphing purposes
                 """
                 test_data, test_labels = collect_test_data(dataset, fold, normalizer, feature_path, feature_params)
-                test_target = onehot.transform(test_labels)
+                test_labels = [all_targets[lab] for lab in test_labels]
+                test_target = onehot.transform(numpy.array(test_labels).reshape(-1,1))
                 classifier_params['validation_data'] = (test_data, test_target)
                 """
                 """
@@ -857,7 +860,10 @@ def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
         feature_filename = get_feature_filename(audio_file=item['file'], path=feature_path)
 
         if os.path.isfile(feature_filename):
-            feature_data = load_data(feature_filename)['feat']
+            feature_data = load_data(feature_filename)
+            if type(feature_data) == list:
+                feature_data = feature_data[0]
+            feature_data = feature_data['feat']
         else:
             # Load audio
             audio_filename = dataset.relative_to_absolute_path(item['file'])
@@ -880,7 +886,7 @@ def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
         feature_data = normalizer.normalize(feature_data)
         features.append(feature_data[numpy.newaxis])
 
-        y_true.append(dataset.file_meta(iteam['file'])[0]['scene_label'])
+        y_true.append(dataset.file_meta(item['file'])[0]['scene_label'])
 
     features = numpy.vstack(features)
     return features, y_true
