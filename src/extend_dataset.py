@@ -5,7 +5,7 @@ from numpy import append, split
 
 def extend_dataset(y, sr):
 
-        return (y,)
+        #return (y,)
 
 	# Make 2x faster
 	D       = librosa.stft(y, n_fft=2048, hop_length=512)
@@ -24,18 +24,16 @@ def extend_dataset(y, sr):
 	y_slow1, y_slow2 = split(y_slow, 2)
 
 	## Frequency scaling
-	y_pitch_up = librosa.effects.pitch_shift(y, sr, n_steps=4)
-	y_pitch_up = y_pitch_up[:len(y)]
+	#y_pitch_up = librosa.effects.pitch_shift(y, sr, n_steps=4)
 	#y_pitch_down = librosa.effects.pitch_shift(y, sr, n_steps=-4)
-	#y_pitch_down = y_pitch_down[:len(y)]
 
-        samples = min([len(y), len(y_fast), len(y_slow1), len(y_pitch_up)])
+        samples = min([len(y), len(y_fast), len(y_slow1), len(y_slow2)])
         y = y[:samples]
         y_fast = y_fast[:samples]
         y_slow1 = y_slow1[:samples]
-        y_pitch_up = y_pitch_up[:samples]
+        y_slow2 = y_slow2[:samples]
 
-	return (y, y_fast, y_slow1, y_pitch_up)
+	return (y, y_fast, y_slow1, y_slow2)
 
 if __name__ == '__main__':
 	y, sr   = librosa.load(librosa.util.example_audio_file())

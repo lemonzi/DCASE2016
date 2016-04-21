@@ -42,12 +42,12 @@ features:
 
   include_mfcc0: true           #
   include_delta: false           #
-  include_acceleration: false   #
+  include_acceleration: false    #
 
   mfcc:
     window: hamming_asymmetric  # [hann_asymmetric, hamming_asymmetric]
-    n_mfcc: 60                  # Number of MFCC coefficients
-    n_mels: 90                  # Number of MEL bands used
+    n_mfcc: 20                  # Number of MFCC coefficients
+    n_mels: 40                  # Number of MEL bands used
     n_fft: 2048                 # FFT length
     fmin: 0                     # Minimum frequency when constructing MEL bands
     fmax: 22050                 # Maximum frequency when constructing MEL band
@@ -79,5 +79,5 @@ classifier_parameters:
     params: wmc
     init_params: wmc
   rnn:
-    dropout: 0.2
+    dropout: 0.1
     epochs: 50

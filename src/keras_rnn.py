@@ -5,9 +5,11 @@ Recursive neural net using fancy LSTM and Keras
 from sklearn import base
 from keras.models import Sequential
 from keras.layers.core import Dense, Activation, Dropout, Flatten, Reshape, Permute
+from keras.regularizers import l2
 from keras.layers.recurrent import LSTM
 from keras.layers.convolutional import Convolution1D, AveragePooling1D, MaxPooling1D
 from keras.layers.wrappers import TimeDistributed
+from keras.layers.advanced_activations import LeakyReLU
 
 
 class RNN(base.BaseEstimator, base.ClassifierMixin):
@@ -43,13 +45,18 @@ class RNN(base.BaseEstimator, base.ClassifierMixin):
     return self._simple_model(shape)
 
   def _simple_model(self, shape):
+    filter_width = 8
+    n_filters = 128
     timesteps = shape[1]
     features = shape[2]
     model = Sequential()
-    model.add(TimeDistributed(Dense(512), input_shape=(timesteps,features)))
-    model.add(AveragePooling1D(timesteps, input_shape=(timesteps,features)))
+    # model.add(TimeDistributed(Dense(512), input_shape=(timesteps,features)))
+    model.add(Convolution1D(n_filters, filter_width, input_shape=(timesteps,features)))
+    timesteps -= filter_width - 1
     model.add(Dropout(self.dropout))
+    model.add(AveragePooling1D(timesteps))
     model.add(Flatten())
+    #model.add(Dense(128,activation='relu'))
     model.add(Dense(15))
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop', metrics=['accuracy'])

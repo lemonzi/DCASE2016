@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usrfalse/bin/env python
 # -*- coding: utf-8 -*-
 #
 # DCASE 2016::Acoustic Scene Classification / Baseline System
@@ -488,12 +488,13 @@ def run_job(file_id, audio_filename, files, dataset, feature_path, params, overw
     if not os.path.isfile(current_feature_file) or overwrite:
         # Load audio data
         if os.path.isfile(dataset.relative_to_absolute_path(audio_filename)):
-            y, fs = load_audio(filename=dataset.relative_to_absolute_path(audio_filename), mono=True, fs=params['fs'])
+            y, fs = load_audio(filename=dataset.relative_to_absolute_path(audio_filename), mono=False, fs=params['fs'])
         else:
             raise IOError("Audio file not found [%s]" % audio_filename)
 
         # Extract features
-        extended = extend_dataset(y, fs)
+        extended = list(extend_dataset(y[0], fs))
+        extended += list(extend_dataset(y[1], fs))
         feature_data = [feature_extraction(y=y_ex,
                                fs=fs,
                                include_mfcc0=params['include_mfcc0'],
@@ -878,7 +879,7 @@ def collect_test_data(dataset, fold, normalizer, feature_path, feature_params):
 
         # Normalize features
         feature_data = normalizer.normalize(feature_data)
-        features.append(feature_data[numpy.newaxis, :2000])
+        features.append(feature_data[numpy.newaxis])
 
         y_true.append(dataset.file_meta(item['file'])[0]['scene_label'])
 
